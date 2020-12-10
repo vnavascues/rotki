@@ -21,7 +21,13 @@ from rotkehlchen.chain.bitcoin.xpub import (
     XpubDerivedAddressData,
     deserialize_derivation_path_for_db,
 )
-from rotkehlchen.chain.ethereum.adex import ADEX_EVENTS_PREFIX, ADXStakingEvent
+from rotkehlchen.chain.ethereum.adex import (
+    ADEX_EVENTS_PREFIX,
+    Bond,
+    Unbond,
+    UnbondRequest,
+    deserialize_adex_event_from_db,
+)
 from rotkehlchen.chain.ethereum.eth2 import ETH2_DEPOSITS_PREFIX, Eth2Deposit
 from rotkehlchen.chain.ethereum.structures import (
     AaveEvent,
@@ -752,12 +758,49 @@ class DBHandler:
         self.conn.commit()
         self.update_last_write()
 
+    def add_adex_events(
+            self,
+            events: Sequence[Union[Bond, Unbond, UnbondRequest]],
+    ) -> None:
+        query = (
+            """
+            INSERT INTO adex_events (
+                tx_hash,
+                address,
+                identity_address,
+                timestamp,
+                bond_id,
+                type,
+                pool_id,
+                amount,
+                nonce,
+                slashed_at,
+                unlock_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        )
+        cursor = self.conn.cursor()
+        for event in events:
+            event_tuple = event.to_db_tuple()
+            try:
+                cursor.execute(query, event_tuple)
+            except sqlcipher.IntegrityError:  # pylint: disable=no-member
+                self.msg_aggregator.add_warning(
+                    f'Tried to add an AdEx event that already exists in the DB. '
+                    f'Event data: {event_tuple}. Skipping event.',
+                )
+                continue
+
+        self.conn.commit()
+        self.update_last_write()
+
     def get_adex_events(
             self,
-            from_ts: Optional[Timestamp] = None,
-            to_ts: Optional[Timestamp] = None,
+            from_timestamp: Optional[Timestamp] = None,
+            to_timestamp: Optional[Timestamp] = None,
             address: Optional[ChecksumEthAddress] = None,
-    ) -> List[ADXStakingEvent]:
+    ) -> List[Union[Bond, Unbond, UnbondRequest]]:
         """Returns a list of AdEx events optionally filtered by time and address.
         """
         cursor = self.conn.cursor()
@@ -770,7 +813,10 @@ class DBHandler:
             'bond_id, '
             'type, '
             'pool_id, '
-            'amount '
+            'amount, '
+            'nonce, '
+            'slashed_at, '
+            'unlock_at '
             'FROM adex_events '
         )
         # Timestamp filters are omitted, done via `form_query_to_filter_timestamps`
@@ -782,13 +828,18 @@ class DBHandler:
             query += 'WHERE '
             query += 'AND '.join(filters)
 
-        query, bindings = form_query_to_filter_timestamps(query, 'timestamp', from_ts, to_ts)
+        query, bindings = form_query_to_filter_timestamps(
+            query=query,
+            timestamp_attribute='timestamp',
+            from_ts=from_timestamp,
+            to_ts=to_timestamp,
+        )
         results = cursor.execute(query, bindings)
 
         events = []
         for event_tuple in results:
             try:
-                event = ADXStakingEvent.deserialize_from_db(event_tuple)
+                event = deserialize_adex_event_from_db(event_tuple)
             except DeserializationError as e:
                 self.msg_aggregator.add_error(
                     f'Error deserializing AdEx event from the DB. Skipping event. '

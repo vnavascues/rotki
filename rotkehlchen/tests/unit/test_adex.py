@@ -46,7 +46,7 @@ def test_get_bond_id():
     assert bond_id == expected_bond_id
 
 
-def test_calculate_adex_balances():
+def test_calculate_staking_balances():
     """Test the staked balances for the following addresses:
     Address 0x494B9728BECA6C03269c38Ed86179757F77Cc0dd
         - 3 bonds, 2 of them unbonds and 1 unbond requested.
@@ -75,6 +75,7 @@ def test_calculate_adex_balances():
             amount=FVal('10000.0199'),
             pool_id=pool_id,
             nonce=1596569185,
+            slashed_at=Timestamp(0),
         ),
         Bond(
             tx_hash=HexStr('0x4f554a09870ea888f6eb5c6650f5c305775948922b5c97a3a091367c1770305a'),
@@ -85,6 +86,7 @@ def test_calculate_adex_balances():
             amount=FVal('100000'),
             pool_id=pool_id,
             nonce=1604365948,
+            slashed_at=Timestamp(0),
         ),
         Bond(
             tx_hash=HexStr('0x4f554a09870ea888f6eb5c6650f5c305775948922b5c97a3a091367c1770305b'),
@@ -95,6 +97,7 @@ def test_calculate_adex_balances():
             amount=FVal('105056.894263641728544592'),
             pool_id=pool_id,
             nonce=1604365948,
+            slashed_at=Timestamp(0),
         ),
         Bond(
             tx_hash=HexStr('0xb3041c910d88c76503ef9bb0a87cfe686fed4ba191d288c59e7a29cc1dcc9fd5'),
@@ -105,6 +108,7 @@ def test_calculate_adex_balances():
             amount=FVal('10661.562521452745365522'),
             pool_id=pool_id,
             nonce=1596569185,
+            slashed_at=Timestamp(0),
         ),
         Bond(
             tx_hash=HexStr('0xc59d65bc6c18e11a3650e8d7ec41a11f58016bbf843376c7f4cb0833402399f1'),
@@ -115,6 +119,7 @@ def test_calculate_adex_balances():
             amount=FVal('13117.593965538701839553'),
             pool_id=pool_id,
             nonce=1596569185,
+            slashed_at=Timestamp(0),
         ),
     ]
     unbonds = [
@@ -147,9 +152,10 @@ def test_calculate_adex_balances():
             identity_address=addr_1_identity,
             timestamp=Timestamp(1607162616),
             bond_id=bond_id_5,
+            unlock_at=Timestamp(0),
         ),
     ]
-    expected_adex_balances = {
+    expected_staking_balances = {
         '0x9A2fF859A18F3f26F88Df8B23ECcC8F55d90Cbd5': [
             ADXStakingBalance(
                 pool_id=pool_id,
@@ -162,10 +168,10 @@ def test_calculate_adex_balances():
             ),
         ],
     }
-    adex_balances = Adex._calculate_adex_balances(
+    staking_balances = Adex._calculate_staking_balances(
         bonds=bonds,
         unbonds=unbonds,
         unbond_requests=unbond_requests,
         adx_usd_price=FVal('0.2702'),
     )
-    assert adex_balances == expected_adex_balances
+    assert staking_balances == expected_staking_balances

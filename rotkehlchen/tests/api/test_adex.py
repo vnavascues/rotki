@@ -6,12 +6,8 @@ from http import HTTPStatus
 import pytest
 import requests
 
-# from rotkehlchen.constants.misc import ZERO
-# from rotkehlchen.fval import FVal
 from rotkehlchen.premium.premium import Premium
-# from rotkehlchen.serialization.deserialize import deserialize_ethereum_address
-from rotkehlchen.tests.unit.test_adex import TEST_ADDR as ADEX_TEST_ADDR
-# from rotkehlchen.tests.utils.aave import AAVE_TEST_ACC_1
+from rotkehlchen.serialization.deserialize import deserialize_ethereum_address
 from rotkehlchen.tests.utils.api import (
     api_url_for,
     assert_error_response,
@@ -19,10 +15,9 @@ from rotkehlchen.tests.utils.api import (
     assert_proper_response_with_result,
     wait_for_async_task,
 )
-# from rotkehlchen.tests.utils.ethereum import INFURA_TEST
 from rotkehlchen.tests.utils.rotkehlchen import setup_balances
 
-# from rotkehlchen.typing import AssetAmount, Location, Price, Timestamp, TradeType
+ADEX_TEST_ADDR = deserialize_ethereum_address('0x8Fe178db26ebA2eEdb22575265bf10A63c395a3d')
 
 
 @pytest.mark.parametrize('ethereum_accounts', [[ADEX_TEST_ADDR]])

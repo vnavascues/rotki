@@ -1,18 +1,28 @@
 from enum import Enum
-from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from eth_typing.evm import ChecksumAddress
 from eth_utils.typing import HexStr
 
 from rotkehlchen.accounting.structures import Balance
-from rotkehlchen.errors import DeserializationError
 from rotkehlchen.fval import FVal
-from rotkehlchen.serialization.deserialize import (
-    deserialize_asset_amount,
-    deserialize_ethereum_address,
-    deserialize_timestamp,
-)
 from rotkehlchen.typing import Timestamp
+
+AdexEventDBTuple = (
+    Tuple[
+        str,  # tx_hash
+        str,  # address
+        str,  # identity_address
+        int,  # timestamp
+        str,  # bond_id
+        str,  # type
+        Optional[str],  # pool_id
+        Optional[str],  # amount
+        Optional[int],  # nonce
+        Optional[int],  # slashed_at
+        Optional[int],  # unlock_at
+    ]
+)
 
 
 class EventType(Enum):
@@ -40,6 +50,32 @@ class Bond(NamedTuple):
     amount: FVal
     pool_id: HexStr
     nonce: int
+    slashed_at: Timestamp  # from bond.slashedAtStart
+
+    def serialize(self) -> Dict[str, Any]:
+        return {
+            'tx_hash': self.tx_hash,
+            'address': self.address,
+            'identity_address': self.identity_address,
+            'timestamp': self.timestamp,
+            'bond_id': self.bond_id,
+            'amount': str(self.amount),
+        }
+
+    def to_db_tuple(self) -> AdexEventDBTuple:
+        return (
+            str(self.tx_hash),
+            str(self.address),
+            str(self.identity_address),
+            int(self.timestamp),
+            str(self.bond_id),
+            str(EventType.BOND),
+            str(self.pool_id),
+            str(self.amount),
+            self.nonce,
+            int(self.slashed_at),
+            None,  # unlock_at
+        )
 
 
 class Unbond(NamedTuple):
@@ -49,6 +85,30 @@ class Unbond(NamedTuple):
     timestamp: Timestamp
     bond_id: HexStr
 
+    def serialize(self) -> Dict[str, Any]:
+        return {
+            'tx_hash': self.tx_hash,
+            'address': self.address,
+            'identity_address': self.identity_address,
+            'timestamp': self.timestamp,
+            'bond_id': self.bond_id,
+        }
+
+    def to_db_tuple(self) -> AdexEventDBTuple:
+        return (
+            str(self.tx_hash),
+            str(self.address),
+            str(self.identity_address),
+            int(self.timestamp),
+            str(self.bond_id),
+            str(EventType.UNBOND),
+            None,  # pool_id
+            None,  # amount
+            None,  # nnonce
+            None,  # slashed_at
+            None,  # unlock_at
+        )
+
 
 class UnbondRequest(NamedTuple):
     tx_hash: HexStr  # from unbond.id
@@ -56,6 +116,31 @@ class UnbondRequest(NamedTuple):
     identity_address: ChecksumAddress
     timestamp: Timestamp
     bond_id: HexStr
+    unlock_at: Timestamp  # from unbondRequest.willUnlock
+
+    def serialize(self) -> Dict[str, Any]:
+        return {
+            'tx_hash': self.tx_hash,
+            'address': self.address,
+            'identity_address': self.identity_address,
+            'timestamp': self.timestamp,
+            'bond_id': self.bond_id,
+        }
+
+    def to_db_tuple(self) -> AdexEventDBTuple:
+        return (
+            str(self.tx_hash),
+            str(self.address),
+            str(self.identity_address),
+            int(self.timestamp),
+            str(self.bond_id),
+            str(EventType.UNBOND_REQUEST),
+            None,  # pool_id
+            None,  # amount
+            None,  # nnonce
+            None,  # slashed_at
+            int(self.unlock_at),
+        )
 
 
 # Contains the events' (e.g. bond, unbond) common attributes
@@ -66,11 +151,17 @@ class EventCoreData(NamedTuple):
     timestamp: Timestamp
 
 
+class ADXStakingEvents(NamedTuple):
+    bonds: List[Bond]
+    unbonds: List[Unbond]
+    unbond_requests: List[UnbondRequest]
+
+
 class ADXStakingBalance(NamedTuple):
     pool_id: HexStr
     pool_name: Optional[str]
     balance: Balance
-    address: ChecksumAddress
+    address: ChecksumAddress  # From staking contract
 
     def serialize(self) -> Dict[str, Any]:
         return {
@@ -80,103 +171,41 @@ class ADXStakingBalance(NamedTuple):
             'address': self.address,
         }
 
-ADXStakingEventDBTuple = (
-    Tuple[
-        str,  # tx_hash
-        str,  # address
-        str,  # identity_address
-        int,  # timestamp
-        str,  # bond_id
-        str,  # type
-        str,  # pool_id
-        str,  # amount
-    ]
-)
+
+class ADXStakingFeeReward(NamedTuple):
+    pool_id: HexStr
+    total_staked_amount: FVal  # from sum(currentTotalActiveStake)
+    total_reward_per_second: FVal  # from sum(currentRewardPerSecond)
 
 
-class ADXStakingEvent(NamedTuple):
-    tx_hash: HexStr  # from unbond.id
-    address: ChecksumAddress
-    identity_address: ChecksumAddress
-    timestamp: Timestamp
-    bond_id: HexStr
-    event_type: EventType
-    pool_id: Optional[HexStr]
-    amount: Optional[FVal]
+class ADXStakingStat(NamedTuple):
+    address: ChecksumAddress  # From staking contract
+    pool_id: HexStr
+    pool_name: Optional[str]
+    balance: Balance
+    total_staked_amount: FVal
+    apy: FVal
 
-    @classmethod
-    def deserialize_from_db(
-            cls,
-            event_tuple: ADXStakingEventDBTuple,
-    ) -> 'ADXStakingEvent':
-        """Turns a tuple read from DB into an appropriate ADXStakingEvent.
-        May raise a DeserializationError if something is wrong with the DB data.
+    def serialize(self) -> Dict[str, Any]:
+        return {
+            'address': self.address,
+            'pool_id': self.pool_id,
+            'pool_name': self.pool_name,
+            'balance': self.balance.serialize(),
+            'total_staked_amount': str(self.total_staked_amount),
+            'apy': self.apy.to_percentage(precision=2),
+        }
 
-        Event_tuple index - Schema columns
-        ----------------------------------
-        0 - tx_hash
-        1 - address
-        2 - identity_address
-        3 - timestamp
-        4 - bond_id
-        5 - type
-        6 - pool_id
-        7 - amount
-        """
-        db_event_type = event_tuple[5]
-        if db_event_type not in {str(event_type) for event_type in EventType}:
-            raise DeserializationError(
-                f'Failed to deserialize event type. Unknown event: {db_event_type}.',
-            )
 
-        if db_event_type == str(EventType.BOND):
-            event_type = EventType.BOND
-        elif db_event_type == str(EventType.UNBOND):
-            event_type = EventType.UNBOND
-        elif db_event_type == str(EventType.UNBOND_REQUEST):
-            event_type = EventType.UNBOND_REQUEST
-        else:
-            raise AssertionError(f'Unexpected event type case: {db_event_type}.')
+class ADXStakingHistory(NamedTuple):
+    events: List[Union[Bond, Unbond, UnbondRequest]]
+    staking_stats: List[ADXStakingStat]
 
-        return cls(
-            tx_hash=event_tuple[0],
-            address=deserialize_ethereum_address(event_tuple[1]),
-            identity_address=deserialize_ethereum_address(event_tuple[2]),
-            timestamp=deserialize_timestamp(event_tuple[3]),
-            bond_id=HexStr(event_tuple[4]),
-            event_type=event_type,
-            pool_id=HexStr(event_tuple[6]),
-            amount=deserialize_asset_amount(event_tuple[7]),
-        )
-
-    @staticmethod
-    def serialize_event_to_db_tuple(
-            event: Union[Bond, Unbond, UnbondRequest],
-    ) -> ADXStakingEventDBTuple:
-        """Given a <Bond>, <Unbond> or <UnbondRequest> serialize it to the
-        standard db event tuple.
-        """
-        if isinstance(event, Bond):
-            event_type = EventType.BOND
-            amount = event.amount
-        elif isinstance(event, Unbond):
-            event_type = EventType.UNBOND
-            amount = ''
-        elif isinstance(event, UnbondRequest):
-            event_type = EventType.UNBOND_REQUEST
-            amount = ''
-        else:
-            raise AssertionError(f'Unexpected event type: {type(event)}.')
-
-        return (
-            str(event.tx_hash),
-            str(event.address),
-            str(event.identity_address),
-            int(event.timestamp),
-            str(event.bond_id),
-            str(event_type),
-            amount,
-        )
+    def serialize(self) -> Dict[str, Any]:
+        return {
+            'events': [event.serialize() for event in self.events],
+            'staking_stats': [stat.serialize() for stat in self.staking_stats],
+        }
 
 
 DeserializationMethod = Callable[..., Union[Bond, Unbond, UnbondRequest]]

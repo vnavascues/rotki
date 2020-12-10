@@ -390,6 +390,9 @@ CREATE TABLE IF NOT EXISTS adex_events (
     type TEXT NOT NULL,
     pool_id TEXT,
     amount TEXT,
+    nonce INT,
+    slashed_at INTEGER,
+    unlock_at INTEGER,
     PRIMARY KEY (tx_hash, address, type)
 );
 """
