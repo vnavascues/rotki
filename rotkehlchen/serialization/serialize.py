@@ -14,6 +14,7 @@ from rotkehlchen.chain.ethereum.aave import (
     AaveHistory,
     AaveLendingBalance,
 )
+from rotkehlchen.chain.ethereum.adex import ADXStakingBalance
 from rotkehlchen.chain.ethereum.compound import CompoundBalance, CompoundEvent
 from rotkehlchen.chain.ethereum.eth2 import Eth2Deposit
 from rotkehlchen.chain.ethereum.makerdao.dsr import DSRAccountReport, DSRCurrentBalances
@@ -114,6 +115,7 @@ def _process_entry(entry: Any) -> Union[str, List[Any], Dict[str, Any], Any]:
             UnknownEthereumToken,
             AMMTrade,
             UniswapPoolEventsBalance,
+            ADXStakingBalance,
     )):
         return process_result(entry.serialize())
     if isinstance(entry, (
