@@ -18,6 +18,10 @@ from rotkehlchen.fval import FVal
 from rotkehlchen.inquirer import Inquirer
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.premium.premium import Premium
+from rotkehlchen.serialization.deserialize import (
+    deserialize_ethereum_address,
+    deserialize_timestamp,
+)
 from rotkehlchen.typing import ChecksumEthAddress, Price, Timestamp
 from rotkehlchen.user_messages import MessagesAggregator
 from rotkehlchen.utils.interfaces import EthereumModule
@@ -32,6 +36,7 @@ from .typing import (
     UnbondRequest,
 )
 from .utils import (
+    ADEX_EVENTS_PREFIX,
     ADX_AMOUNT_MANTISSA,
     CREATE2_SALT,
     IDENTITY_FACTORY_ADDR,
@@ -172,10 +177,11 @@ class Adex(EthereumModule):
         """Deserialize the common event attributes.
 
         It may raise KeyError.
+        Id for unbond and unbond request events is 'tx_hash:address'.
         """
         identity_address = to_checksum_address(raw_event['owner'])
         return EventCoreData(
-            tx_hash=HexStr(raw_event['id']),
+            tx_hash=HexStr(raw_event['id'].split(':')[0]),
             address=identity_address_map[identity_address],
             identity_address=identity_address,
             timestamp=Timestamp(raw_event['timestamp']),
@@ -223,11 +229,57 @@ class Adex(EthereumModule):
             bond_id=HexStr(raw_event['bondId']),
         )
 
+    def _get_events(
+            self,
+            addresses: List[ChecksumEthAddress],
+            from_timestamp: Timestamp,
+            to_timestamp: Timestamp,
+    ):
+        """TODO
+        """
+        new_addresses: List[ChecksumEthAddress] = []
+        existing_addresses: List[ChecksumEthAddress] = []
+        min_end_ts: Timestamp = to_timestamp
+
+        # Get addresses' last used query range for AdEx events
+        for address in addresses:
+            entry_name = f'{ADEX_EVENTS_PREFIX}_{address}'
+            events_range = self.database.get_used_query_range(name=entry_name)
+
+            if not events_range:
+                new_addresses.append(address)
+            else:
+                existing_addresses.append(address)
+                min_end_ts = min(min_end_ts, events_range[1])
+
+        # Request new addresses' events
+        all_new_events = []
+        if new_addresses:
+            new_events = self._get_new_events(
+                addresses=addresses,
+                start_ts=Timestamp(0),
+                end_ts=to_timestamp,
+            )
+            all_new_events.extend(new_events)
+
+        # Request existing DB addresses' events
+        if existing_addresses and min_end_ts <= to_timestamp:
+            new_events = self._get_new_events(
+                addresses=addresses,
+                start_ts=min_end_ts,
+                end_ts=to_timestamp,
+            )
+        # ! TODO
+
+        return {}
+
     @overload  # noqa: F811
     def _get_balances_graph(  # pylint: disable=no-self-use
             self,
             addresses: List[ChecksumEthAddress],
             case: Literal['bonds'],
+            start_ts: Optional[Timestamp],
+            end_ts: Optional[Timestamp],
     ) -> List[Bond]:
         ...
 
@@ -236,6 +288,8 @@ class Adex(EthereumModule):
             self,
             addresses: List[ChecksumEthAddress],
             case: Literal['unbonds'],
+            start_ts: Optional[Timestamp],
+            end_ts: Optional[Timestamp],
     ) -> List[Unbond]:
         ...
 
@@ -244,6 +298,8 @@ class Adex(EthereumModule):
             self,
             addresses: List[ChecksumEthAddress],
             case: Literal['unbond_requests'],
+            start_ts: Optional[Timestamp],
+            end_ts: Optional[Timestamp],
     ) -> List[UnbondRequest]:
         ...
 
@@ -251,6 +307,8 @@ class Adex(EthereumModule):
             self,
             addresses: List[ChecksumEthAddress],
             case: Literal['bonds', 'unbonds', 'unbond_requests'],
+            start_ts: Optional[Timestamp],
+            end_ts: Optional[Timestamp],
     ) -> Union[List[Bond], List[Unbond], List[UnbondRequest]]:
         """Get the addresses' events data querying the AdEx subgraph.
         """
@@ -278,6 +336,8 @@ class Adex(EthereumModule):
         else:
             raise AssertionError(f'Unexpected AdEx case: {case}.')
 
+        from_ts = start_ts or 0
+        to_ts =
         user_identities = [str(identity).lower() for identity in identity_address_map.keys()]
         param_types = {
             '$limit': 'Int!',
@@ -351,6 +411,34 @@ class Adex(EthereumModule):
         """
         return {self._get_user_identity(address): address for address in addresses}
 
+    def _get_new_events(
+            self,
+            addresses: List[ChecksumEthAddress],
+            start_ts: Timestamp,
+            end_ts: Timestamp,
+    ) -> Union[List[Bond], List[Unbond], List[UnbondRequest]]:
+        """Returns events of the addresses within the time range and inserts/updates
+        the used query range of the addresses as well.
+        """
+        all_events = []
+        for event_type in ('bonds', 'unbonds', 'unbond_requests'):
+            events = self._get_balances_graph(
+                addresses=addresses,
+                case=event_type,
+                start_ts=start_ts,
+                end_ts=end_ts,
+            )
+            all_events.extend(events)
+
+        for address in addresses:
+            self.database.update_used_query_range(
+                name=f'{ADEX_EVENTS_PREFIX}_{address}',
+                start_ts=start_ts,
+                end_ts=end_ts,
+            )
+        return all_events
+
+
     @staticmethod
     def _get_user_identity(address: ChecksumAddress) -> ChecksumEthAddress:
         """Given an address (signer) returns its protocol user identity.
@@ -395,6 +483,30 @@ class Adex(EthereumModule):
                 "Get AdEx balances for non premium user is not implemented.",
             )
         return adex_balances
+
+    def get_events_history(
+            self,
+            addresses: List[ChecksumEthAddress],
+            reset_db_data: bool,
+            from_timestamp: Timestamp,
+            to_timestamp: Timestamp,
+    ):
+        """TODO
+        """
+        if self.graph is None:  # could not initialize graph
+            return {}
+
+        with self.trades_lock:
+            if reset_db_data is True:
+                self.database.delete_adex_events_data()
+
+        adex_events = {}
+        adex_events = self._get_events(
+            addresses=addresses,
+            from_timestamp=from_timestamp,
+            to_timestamp=to_timestamp,
+        )
+        return adex_events
 
     # -- Methods following the EthereumModule interface -- #
     def on_startup(self) -> None:

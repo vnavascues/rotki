@@ -119,21 +119,21 @@ def test_calculate_adex_balances():
     ]
     unbonds = [
         Unbond(
-            tx_hash=HexStr('0x4f554a09870ea888f6eb5c6650f5c305775948922b5c97a3a091367c1770305c:0x9A2fF859A18F3f26F88Df8B23ECcC8F55d90Cbd5'),  # noqa: E501
+            tx_hash=HexStr('0x4f554a09870ea888f6eb5c6650f5c305775948922b5c97a3a091367c1770305c'),
             address=addr_2,
             identity_address=addr_2_identity,
             timestamp=Timestamp(1607453764),
             bond_id=bond_id_2,
         ),
         Unbond(
-            tx_hash=HexStr('0xb3041c910d88c76503ef9bb0a87cfe686fed4ba191d288c59e7a29cc1dcc9fd5:0x494b9728beca6c03269c38ed86179757f77cc0dd'),  # noqa: E501
+            tx_hash=HexStr('0xb3041c910d88c76503ef9bb0a87cfe686fed4ba191d288c59e7a29cc1dcc9fd5'),
             address=addr_1,
             identity_address=addr_1_identity,
             timestamp=Timestamp(1597170166),
             bond_id=bond_id_1,
         ),
         Unbond(
-            tx_hash=HexStr('0xc59d65bc6c18e11a3650e8d7ec41a11f58016bbf843376c7f4cb0833402399f1:0x494b9728beca6c03269c38ed86179757f77cc0dd'),  # noqa: E501
+            tx_hash=HexStr('0xc59d65bc6c18e11a3650e8d7ec41a11f58016bbf843376c7f4cb0833402399f1'),
             address=addr_1,
             identity_address=addr_1_identity,
             timestamp=Timestamp(1601393322),
@@ -142,7 +142,7 @@ def test_calculate_adex_balances():
     ]
     unbond_requests = [
         UnbondRequest(
-            tx_hash=HexStr('0x966efd9e76e5d8086f4ce209d15cd9507c11e26c5ce48ed33bdbf74bd2fe0f87:0x494b9728beca6c03269c38ed86179757f77cc0dd'),  # noqa: E501
+            tx_hash=HexStr('0x966efd9e76e5d8086f4ce209d15cd9507c11e26c5ce48ed33bdbf74bd2fe0f87'),
             address=addr_1,
             identity_address=addr_1_identity,
             timestamp=Timestamp(1607162616),

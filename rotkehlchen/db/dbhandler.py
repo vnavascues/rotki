@@ -21,6 +21,7 @@ from rotkehlchen.chain.bitcoin.xpub import (
     XpubDerivedAddressData,
     deserialize_derivation_path_for_db,
 )
+from rotkehlchen.chain.ethereum.adex import ADEX_EVENTS_PREFIX, ADXStakingEvent
 from rotkehlchen.chain.ethereum.eth2 import ETH2_DEPOSITS_PREFIX, Eth2Deposit
 from rotkehlchen.chain.ethereum.structures import (
     AaveEvent,
@@ -748,6 +749,63 @@ class DBHandler:
         cursor = self.conn.cursor()
         cursor.execute('DELETE FROM aave_events;')
         cursor.execute('DELETE FROM used_query_ranges WHERE name LIKE "aave_events%";')
+        self.conn.commit()
+        self.update_last_write()
+
+    def get_adex_events(
+            self,
+            from_ts: Optional[Timestamp] = None,
+            to_ts: Optional[Timestamp] = None,
+            address: Optional[ChecksumEthAddress] = None,
+    ) -> List[ADXStakingEvent]:
+        """Returns a list of AdEx events optionally filtered by time and address.
+        """
+        cursor = self.conn.cursor()
+        query = (
+            'SELECT '
+            'tx_hash, '
+            'address, '
+            'identity_address, '
+            'timestamp, '
+            'bond_id, '
+            'type, '
+            'pool_id, '
+            'amount '
+            'FROM adex_events '
+        )
+        # Timestamp filters are omitted, done via `form_query_to_filter_timestamps`
+        filters = []
+        if address is not None:
+            filters.append(f'address="{address}" ')
+
+        if filters:
+            query += 'WHERE '
+            query += 'AND '.join(filters)
+
+        query, bindings = form_query_to_filter_timestamps(query, 'timestamp', from_ts, to_ts)
+        results = cursor.execute(query, bindings)
+
+        events = []
+        for event_tuple in results:
+            try:
+                event = ADXStakingEvent.deserialize_from_db(event_tuple)
+            except DeserializationError as e:
+                self.msg_aggregator.add_error(
+                    f'Error deserializing AdEx event from the DB. Skipping event. '
+                    f'Error was: {str(e)}',
+                )
+                continue
+            events.append(event)
+
+        return events
+
+    def delete_adex_events_data(self) -> None:
+        """Delete all historical AdEx events data"""
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM adex_events;')
+        cursor.execute(
+            f'DELETE FROM used_query_ranges WHERE name LIKE "{ADEX_EVENTS_PREFIX}%";',
+        )
         self.conn.commit()
         self.update_last_write()
 
