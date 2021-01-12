@@ -2,7 +2,8 @@
 Changelog
 =========
 
-* :feature:`1662` Users are now able to manually input ledger actions such as Income, Donation, Loss, Expense, Dividends Income
+* :feature:`1920` Rotki now supports your own Kusama node along the public ones.
+* :feature:`1662` Users are now able to manually input ledger actions such as Income, Donation, Loss, Expense, Dividends Income.
 * :bug:`1140` Users will now see the account balances sorted by label instead of hex when sorting the account column.
 * :feature:`1919` Rotki now supports Kusama blockchain. Users can import their Kusama addresses and see their KSM balances.
 * :feature:`1792` Users should now be able to see the accounting settings used when generating a tax report.
