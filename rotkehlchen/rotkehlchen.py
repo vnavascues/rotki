@@ -264,17 +264,19 @@ class Rotkehlchen():
             greenlet_manager=self.greenlet_manager,
             connect_at_start=ETHEREUM_NODES_TO_CONNECT_AT_START,
         )
+        blockchain_accounts = self.data.db.get_blockchain_accounts()
         kusama_manager = SubstrateManager(
             chain=SubstrateChain.KUSAMA,
             msg_aggregator=self.msg_aggregator,
             greenlet_manager=self.greenlet_manager,
             connect_at_start=KUSAMA_NODES_TO_CONNECT_AT_START,
             own_rpc_endpoint=settings.ksm_rpc_endpoint,
+            connect_on_startup=bool(blockchain_accounts.ksm),
         )
 
         Inquirer().inject_ethereum(ethereum_manager)
         self.chain_manager = ChainManager(
-            blockchain_accounts=self.data.db.get_blockchain_accounts(),
+            blockchain_accounts=blockchain_accounts,
             ethereum_manager=ethereum_manager,
             kusama_manager=kusama_manager,
             msg_aggregator=self.msg_aggregator,
