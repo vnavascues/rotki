@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import gevent
+from flask_socketio import SocketIO
 from gevent.queue import Queue
 
 from rotkehlchen.chain.substrate.typing import SubstrateChain
@@ -23,7 +24,8 @@ DB_PASSWORD = '1234'
 
 
 class Manager():
-    def __init__(self) -> None:
+    def __init__(self, socketio: SocketIO) -> None:
+        self.socketio = socketio
         self.indexer_id_counter = 0
         self.dbwriter_id_counter = 0
         self.indexer_id_to_indexer: Dict[int, Indexer] = {}
@@ -61,6 +63,7 @@ class Manager():
             user_data_dir=DB_PATH,
             password=DB_PASSWORD,
             msg_aggregator=self.msg_aggregator,
+            socketio=self.socketio,
         )
         log.debug(
             f'Created {dbwriter.name}',
@@ -108,6 +111,7 @@ class Manager():
             sid=sid,
             url=dbwriter.start_indexer_data.url,
             start_indexing_data=start_indexing_data,
+            socketio=self.socketio,
         )
         log.debug(
             f'Created {indexer.name}',

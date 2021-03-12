@@ -4,6 +4,7 @@ from typing import List
 
 import gevent
 import requests
+from flask_socketio import SocketIO
 from gevent.queue import Queue
 from substrateinterface import ExtrinsicReceipt
 from substrateinterface.exceptions import ExtrinsicNotFound, SubstrateRequestException
@@ -14,11 +15,17 @@ from rotkehlchen.chain.substrate.typing import (
     SubstrateExtrinsic,
 )
 from rotkehlchen.db.dbhandler import DBHandler
-from rotkehlchen.errors import ModuleInitializationFailure, RemoteError, SystemPermissionError
+from rotkehlchen.errors import (
+    DeserializationError,
+    ModuleInitializationFailure,
+    RemoteError,
+    SystemPermissionError,
+)
 from rotkehlchen.fval import FVal
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.user_messages import MessagesAggregator
-from substrate_indexer.typing_events import EventStartIndexerData
+from substrate_indexer.errors import DBWriterError
+from substrate_indexer.typing_events import ClientEvent, EventErrorData, EventStartIndexerData
 from substrate_indexer.utils import get_node_interface
 
 logger = logging.getLogger(__name__)
@@ -48,6 +55,7 @@ class DBWriter():
             user_data_dir: Path,
             password: str,
             msg_aggregator: MessagesAggregator,
+            socketio: SocketIO,
     ) -> None:
         """
         TODO:
@@ -61,6 +69,7 @@ class DBWriter():
         - ModuleInitializationFailure
         - RemoteError
         """
+        self.socketio = socketio
         self.instance_id = instance_id
         self.queue = queue
         self.sid = sid
@@ -107,7 +116,11 @@ class DBWriter():
             self,
             address_block_extrinsics_data: SubstrateAddressBlockExtrinsicsData,
     ) -> List[ExtrinsicReceipt]:
-        """May raise RemoteError"""
+        """
+        May raise:
+        - DeserializationError
+        - RemoteError
+        """
         extrinsics: List[SubstrateExtrinsic] = []
         block_number = address_block_extrinsics_data.block_number
         block_hash = address_block_extrinsics_data.block_hash
@@ -146,21 +159,22 @@ class DBWriter():
                         address_block_extrinsics_data=address_block_extrinsics_data,
                         extrinsic=extrinsic,
                     )
-                    raise RemoteError(f'{self.name} failed to request extrinsic data') from e
+                    raise RemoteError(f'{msg} due to: {str(e)}') from e
 
                 break
 
             # NB: `total_fee_amount` should not be None in the kind of extrinsics
             # we are processing
             if total_fee_amount is None:
+                msg = f'{self.name} got an unexpected fee amount. A value is required'
                 log.error(
-                    f'{self.name} got an unexpected fee amount. A value is required',
+                    msg,
                     sid=self.sid,
                     start_indexer_data=self.start_indexer_data,
                     address_block_extrinsics_data=address_block_extrinsics_data,
                     extrinsic=extrinsic,
                 )
-                raise RemoteError(f'{self.name} failed to calculate fee amount')
+                raise DeserializationError(msg)
 
             fee = total_fee_amount / FVal('10') ** self.node_interface.token_decimals
             extrinsic = SubstrateExtrinsic(
@@ -196,9 +210,22 @@ class DBWriter():
                     f'{self.name} got extrinsic data from the queue',
                     address_block_extrinsics_data=address_block_extrinsics_data,
                 )
-                substrate_extrinsics = self._deserialize_substrate_extrinsics(
-                    address_block_extrinsics_data=address_block_extrinsics_data,
-                )
+                try:
+                    substrate_extrinsics = self._deserialize_substrate_extrinsics(
+                        address_block_extrinsics_data=address_block_extrinsics_data,
+                    )
+                except (DeserializationError, RemoteError) as e:
+                    event_error_data = EventErrorData(
+                        error=DBWriterError.E0001,
+                        detail=str(e),
+                    )
+                    self.socketio.emit(
+                        str(ClientEvent.SERVER_ERROR),
+                        event_error_data.serialize(),
+                        to=self.sid,
+                    )
+                    return None
+
                 all_substrate_extrinsics.extend(substrate_extrinsics)
                 if count == MAX_NUMBER_QUEUE_ITEMS_TO_PROCESS:
                     break

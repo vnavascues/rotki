@@ -43,7 +43,7 @@ log = RotkehlchenLogsAdapter(logger)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'rotki123'
 socketio = SocketIO(app, logger=False, engineio_logger=False)
-manager = Manager()
+manager = Manager(socketio=socketio)
 
 
 def emit_error(

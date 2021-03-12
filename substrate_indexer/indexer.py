@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional
 
 import requests
+from flask_socketio import SocketIO
 from gevent.queue import Queue
 from scalecodec.block import Extrinsic
 from substrateinterface.exceptions import SubstrateRequestException
@@ -11,7 +12,8 @@ from rotkehlchen.chain.substrate.typing import BlockNumber, SubstrateAddressBloc
 from rotkehlchen.errors import DeserializationError, ModuleInitializationFailure, RemoteError
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from substrate_indexer.deserializations import deserialize_inherent_timestamp
-from substrate_indexer.typing_events import EventStartIndexingData
+from substrate_indexer.errors import IndexerError
+from substrate_indexer.typing_events import ClientEvent, EventErrorData, EventStartIndexingData
 from substrate_indexer.utils import get_node_interface
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,7 @@ class Indexer():
             sid: str,
             url: str,
             start_indexing_data: EventStartIndexingData,
+            socketio: SocketIO,
     ) -> None:
         """
         TODO:
@@ -45,6 +48,7 @@ class Indexer():
         - ModuleInitializationFailure
         - RemoteError
         """
+        self.socketio = socketio
         self.instance_id = instance_id
         self.queue = queue
         self.sid = sid
@@ -109,7 +113,7 @@ class Indexer():
                     url=self.url,
                     start_indexing_data=self.start_indexing_data,
                 )
-                raise RemoteError(f'{self.name} failed to request block extrinsics') from e
+                raise RemoteError(f'{msg} due to: {str(e)}') from e
 
             break
 
@@ -136,15 +140,16 @@ class Indexer():
                 location=self.name,
             )
         except DeserializationError as e:
+            msg = f'{self.name} failed to deserialize block {block_number} inherent timestamp'
             log.error(
-                f'{self.name} failed to deserialize block {block_number} inherent timestamp',
+                msg,
                 error=str(e),
                 block_inherent=block_inherent,
                 sid=self.sid,
                 url=self.url,
                 start_indexing_data=self.start_indexing_data,
             )
-            raise RemoteError(f'{self.name} failed to request block extrinsics') from e
+            raise DeserializationError(f'{msg} due to: {str(e)}') from e
 
         # NB: `block_hash` is available after requesting the extrinsics by `block_number`
         # and it does not require an extra RPC call.
@@ -166,7 +171,22 @@ class Indexer():
             if block_number % LOG_CURRENT_BLOCK_NUMBER_EVERY == 0:
                 log.debug(f'{self.name} requesting block {block_number}')
 
-            address_block_extrinsics_data = self._get_address_block_extrinsics_data(block_number)
+            try:
+                address_block_extrinsics_data = self._get_address_block_extrinsics_data(
+                    block_number=block_number,
+                )
+            except (DeserializationError, RemoteError) as e:
+                event_error_data = EventErrorData(
+                    error=IndexerError.E0001,
+                    detail=str(e),
+                )
+                self.socketio.emit(
+                    str(ClientEvent.SERVER_ERROR),
+                    event_error_data.serialize(),
+                    to=self.sid,
+                )
+                return None
+
             if address_block_extrinsics_data is not None:
                 log.debug(
                     f'{self.name} put extrinsic data in the queue',
