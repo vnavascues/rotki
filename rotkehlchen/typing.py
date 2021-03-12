@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, NewType, Optional, Tup
 from eth_typing import ChecksumAddress
 from typing_extensions import Literal
 
-from rotkehlchen.chain.substrate.typing import KusamaAddress
+from rotkehlchen.chain.substrate.typing_addresses import KusamaAddress
 from rotkehlchen.errors import DeserializationError
 from rotkehlchen.fval import FVal
 

@@ -8,7 +8,7 @@ from typing_extensions import Literal
 from rotkehlchen.accounting.structures import BalanceType
 from rotkehlchen.assets.asset import Asset
 from rotkehlchen.balances.manual import ManuallyTrackedBalance
-from rotkehlchen.chain.substrate.typing import KusamaAddress
+from rotkehlchen.chain.substrate.typing_addresses import KusamaAddress
 from rotkehlchen.chain.substrate.utils import is_valid_kusama_address
 from rotkehlchen.typing import (
     BlockchainAccountData,

@@ -1,11 +1,10 @@
 from substrateinterface import Keypair
 from substrateinterface.utils.ss58 import ss58_decode
 
-from .typing import (
+from rotkehlchen.chain.substrate.typing import KusamaNodeName, SubstrateChain
+from rotkehlchen.chain.substrate.typing_addresses import (
     KusamaAddress,
-    KusamaNodeName,
     SubstrateAddress,
-    SubstrateChain,
     SubstratePublicKey,
 )
 
@@ -64,7 +63,7 @@ def is_valid_substrate_address(
     return True
 
 
-def get_kusama_address_from_public_key(public_key: SubstratePublicKey) -> KusamaAddress:
+def get_kusama_address_from_substrate_public_key(public_key: SubstratePublicKey) -> KusamaAddress:
     """Return a valid Kusama address given a Substrate public key.
 
     Public key: 32 len str, leading '0x' is optional.
@@ -75,13 +74,13 @@ def get_kusama_address_from_public_key(public_key: SubstratePublicKey) -> Kusama
     - ValueError: if public key is not 32 bytes long or the ss58_format is not
     a valid int.
     """
-    return get_substrate_address_from_public_key(
+    return get_substrate_address_from_substrate_public_key(
         chain=SubstrateChain.KUSAMA,
         public_key=public_key,
     )
 
 
-def get_substrate_address_from_public_key(
+def get_substrate_address_from_substrate_public_key(
         chain: SubstrateChain,
         public_key: SubstratePublicKey,
 ) -> SubstrateAddress:
@@ -91,9 +90,7 @@ def get_substrate_address_from_public_key(
 
     May raise:
     - AttributeError: if public key is not a string.
-    - TypeError: if ss58_format is not an int.
-    - ValueError: if public key is not 32 bytes long or the ss58_format is not
-    a valid int.
+    - ValueError: if public key is not 32 bytes long or the ss58_format is not valid.
     """
     if chain == SubstrateChain.KUSAMA:
         ss58_format = 2
@@ -105,3 +102,27 @@ def get_substrate_address_from_public_key(
         ss58_format=ss58_format,
     )
     return SubstrateAddress(keypair.ss58_address)
+
+
+def get_substrate_public_key_from_substrate_address(
+        chain: SubstrateChain,
+        address: SubstrateAddress,
+) -> SubstratePublicKey:
+    """Return the public key (f'0x{account ID}') for the given Substrate chain
+    and ss58 formatted address.
+
+    May raise:
+    - AttributeError: if address is not a string.
+    - ValueError: if the ss58_format value is not valid, or the address is not
+    formatted in the specified ss58_format.
+    """
+    if chain == SubstrateChain.KUSAMA:
+        ss58_format = 2
+    else:
+        raise AssertionError(f'Unexpected chain: {chain}')
+
+    keypair = Keypair(
+        ss58_address=address,
+        ss58_format=ss58_format,
+    )
+    return SubstratePublicKey(keypair.public_key)

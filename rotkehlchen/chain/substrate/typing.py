@@ -1,11 +1,13 @@
+import json
 from enum import Enum
-from typing import Dict, List, NamedTuple, NewType, Tuple, Type, Union
+from typing import Any, Dict, List, NamedTuple, NewType, Tuple, Type, Union
 
+from scalecodec.block import Extrinsic
 from substrateinterface import SubstrateInterface
 
-KusamaAddress = NewType('KusamaAddress', str)
-SubstrateAddress = Union[KusamaAddress]
-SubstratePublicKey = NewType('SubstratePublicKey', str)
+from rotkehlchen.chain.substrate.typing_addresses import SubstrateAddress, SubstratePublicKey
+from rotkehlchen.fval import FVal
+from rotkehlchen.typing import Timestamp
 
 SubstrateChainId = NewType('SubstrateChainId', str)
 BlockNumber = NewType('BlockNumber', int)
@@ -54,6 +56,15 @@ class SubstrateChain(Enum):
             return SubstrateChainId('Kusama')
         raise AssertionError(f'Unexpected Chain: {self}')
 
+    @classmethod
+    def get_substrate_chain_from_chain_id(
+            cls,
+            chain_id: Union[SubstrateChainId, int],
+    ) -> 'SubstrateChain':
+        if chain_id in (SubstrateChainId('Kusama'), 1):
+            return cls.KUSAMA
+        raise AssertionError(f'Unexpected chain ID: {chain_id}')
+
     def chain_explorer_api(self) -> str:
         """Return the explorer API.
 
@@ -93,3 +104,66 @@ class NodeNameAttributes(NamedTuple):
 
 DictNodeNameNodeAttributes = Dict[NodeName, NodeNameAttributes]
 NodesCallOrder = List[Tuple[NodeName, NodeNameAttributes]]
+
+
+class SubstrateAddressBlockExtrinsicsData(NamedTuple):
+    address: SubstrateAddress
+    address_public_key: SubstratePublicKey
+    block_number: BlockNumber
+    block_hash: str
+    block_timestamp: Timestamp
+    extrinsics: List[Extrinsic]
+
+
+SubstrateExtrinsicDBTuple = (
+    Tuple[
+        str,  # chain_id
+        int,  # block_number
+        str,  # block_hash
+        int,  # block_timestamp
+        int,  # extrinsic_index
+        str,  # extrinsic_hash
+        str,  # call_module
+        str,  # call_module_function
+        str,  # params
+        str,  # account_id
+        str,  # address
+        int,  # nonce
+        str,  # fee
+    ]
+)
+
+
+class SubstrateExtrinsic(NamedTuple):
+    chain_id: SubstrateChainId
+    block_number: BlockNumber
+    block_hash: str
+    block_timestamp: Timestamp
+    extrinsic_index: int
+    extrinsic_hash: str
+    call_module: str
+    call_module_function: str
+    params: List[Dict[str, Any]]
+    account_id: SubstratePublicKey
+    address: SubstrateAddress
+    nonce: int
+    fee: FVal
+
+    def to_db_tuple(self) -> SubstrateExtrinsicDBTuple:
+        params = json.dumps(self.params)
+        db_tuple = (
+            str(self.chain_id),
+            int(self.block_number),
+            self.block_hash,
+            self.block_timestamp,
+            self.extrinsic_index,
+            self.extrinsic_hash,
+            self.call_module,
+            self.call_module_function,
+            params,
+            str(self.account_id),
+            str(self.address),
+            self.nonce,
+            str(self.fee),
+        )
+        return db_tuple

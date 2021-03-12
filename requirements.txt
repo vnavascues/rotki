@@ -22,3 +22,7 @@ webargs==6.0.0
 
 #constraints
 setuptools==41.0.1  # constraint required by pyinstaller==3.5.0
+
+# substrate-indexer
+gevent-websocket==0.10.1  # TODO: move up, as it is general
+flask-socketio==5.0.1

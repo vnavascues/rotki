@@ -21,9 +21,9 @@ from rotkehlchen.chain.bitcoin.utils import (
 )
 from rotkehlchen.chain.ethereum.manager import EthereumManager
 from rotkehlchen.chain.ethereum.typing import CustomEthereumToken, UnderlyingToken
-from rotkehlchen.chain.substrate.typing import KusamaAddress, SubstratePublicKey
+from rotkehlchen.chain.substrate.typing_addresses import KusamaAddress, SubstratePublicKey
 from rotkehlchen.chain.substrate.utils import (
-    get_kusama_address_from_public_key,
+    get_kusama_address_from_substrate_public_key,
     is_valid_kusama_address,
 )
 from rotkehlchen.constants.misc import ZERO
@@ -1335,7 +1335,9 @@ def _transform_ksm_address(
         ) from None
 
     try:
-        address = get_kusama_address_from_public_key(SubstratePublicKey(resolved_address))
+        address = get_kusama_address_from_substrate_public_key(
+            public_key=SubstratePublicKey(resolved_address),
+        )
     except (TypeError, ValueError) as e:
         raise ValidationError(
             f'Given ENS address {given_address} does not contain a valid '

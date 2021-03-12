@@ -54,7 +54,7 @@ from rotkehlchen.chain.ethereum.modules import (
 )
 from rotkehlchen.chain.ethereum.tokens import EthTokens
 from rotkehlchen.chain.substrate.manager import wait_until_a_node_is_available
-from rotkehlchen.chain.substrate.typing import KusamaAddress
+from rotkehlchen.chain.substrate.typing_addresses import KusamaAddress
 from rotkehlchen.chain.substrate.utils import KUSAMA_NODE_CONNECTION_TIMEOUT
 from rotkehlchen.constants.assets import A_ADX, A_BTC, A_DAI, A_ETH, A_ETH2, A_KSM
 from rotkehlchen.constants.misc import ZERO

@@ -5,7 +5,8 @@ import pytest
 from rotkehlchen.chain.ethereum.manager import EthereumManager, NodeName
 from rotkehlchen.chain.manager import ChainManager
 from rotkehlchen.chain.substrate.manager import SubstrateChainProperties, SubstrateManager
-from rotkehlchen.chain.substrate.typing import KusamaAddress, SubstrateChain
+from rotkehlchen.chain.substrate.typing import SubstrateChain
+from rotkehlchen.chain.substrate.typing_addresses import KusamaAddress
 from rotkehlchen.db.settings import DEFAULT_BTC_DERIVATION_GAP_LIMIT
 from rotkehlchen.db.utils import BlockchainAccounts
 from rotkehlchen.externalapis.beaconchain import BeaconChain

@@ -48,6 +48,7 @@ from rotkehlchen.chain.ethereum.structures import (
     aave_event_from_db,
 )
 from rotkehlchen.chain.ethereum.trades import AMMSwap
+from rotkehlchen.chain.substrate.typing import SubstrateExtrinsic
 from rotkehlchen.constants.assets import A_USD
 from rotkehlchen.constants.ethereum import YEARN_VAULTS_PREFIX
 from rotkehlchen.db.eth2 import ETH2_DEPOSITS_PREFIX
@@ -1245,6 +1246,45 @@ class DBHandler:
         cursor.execute(
             f'DELETE FROM used_query_ranges WHERE name LIKE "{BALANCER_EVENTS_PREFIX}%";',
         )
+        self.conn.commit()
+        self.update_last_write()
+
+    def add_substrate_extrinsics(
+            self,
+            extrinsics: Sequence[SubstrateExtrinsic],
+    ) -> None:
+        query = (
+            """
+            INSERT INTO substrate_extrinsics (
+                chain_id,
+                block_timestamp,
+                block_number,
+                block_hash,
+                extrinsic_index,
+                extrinsic_hash,
+                call_module,
+                call_module_function,
+                params,
+                account_id,
+                address,
+                nonce,
+                fee
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        )
+        cursor = self.conn.cursor()
+        for extrinsic in extrinsics:
+            extrinsic_tuple = extrinsic.to_db_tuple()
+            try:
+                cursor.execute(query, extrinsic_tuple)
+            except sqlcipher.IntegrityError:  # pylint: disable=no-member
+                self.msg_aggregator.add_warning(
+                    f'Tried to add a {extrinsic.chain_id} extrinsic that already exists in the DB. '  # noqa: E501
+                    f'Extrinsic data: {extrinsic_tuple}. Skipping extrinsic.',
+                )
+                continue
+
         self.conn.commit()
         self.update_last_write()
 

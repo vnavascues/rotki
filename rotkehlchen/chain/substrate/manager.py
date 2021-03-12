@@ -14,6 +14,16 @@ from typing_extensions import Literal
 from websocket import WebSocketException
 
 from rotkehlchen.assets.asset import Asset
+from rotkehlchen.chain.substrate.typing import (
+    BlockNumber,
+    DictNodeNameNodeAttributes,
+    NodeName,
+    NodeNameAttributes,
+    NodesCallOrder,
+    SubstrateChain,
+    SubstrateChainId,
+)
+from rotkehlchen.chain.substrate.typing_addresses import SubstrateAddress
 from rotkehlchen.constants.misc import ZERO
 from rotkehlchen.errors import RemoteError, UnknownAsset
 from rotkehlchen.fval import FVal
@@ -21,17 +31,6 @@ from rotkehlchen.greenlets import GreenletManager
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.user_messages import MessagesAggregator
 from rotkehlchen.utils.serialization import rlk_jsonloads_dict
-
-from .typing import (
-    BlockNumber,
-    DictNodeNameNodeAttributes,
-    NodeName,
-    NodeNameAttributes,
-    NodesCallOrder,
-    SubstrateAddress,
-    SubstrateChain,
-    SubstrateChainId,
-)
 
 logger = logging.getLogger(__name__)
 log = RotkehlchenLogsAdapter(logger)

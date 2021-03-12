@@ -8,7 +8,7 @@ import pytest
 import requests
 from eth_utils import to_checksum_address
 
-from rotkehlchen.chain.substrate.typing import KusamaAddress
+from rotkehlchen.chain.substrate.typing_addresses import KusamaAddress
 from rotkehlchen.constants.misc import ZERO
 from rotkehlchen.fval import FVal
 from rotkehlchen.logging import RotkehlchenLogsAdapter

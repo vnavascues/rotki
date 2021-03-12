@@ -578,10 +578,33 @@ CREATE TABLE IF NOT EXISTS balancer_events (
 );
 """
 
+# TODO: enable SQLite json1 extension and change params column to JSON type
+DB_CREATE_SUBSTRATE_EXTRINSICS = """
+CREATE TABLE IF NOT EXISTS substrate_extrinsics (
+    /* extrinsic_hash is not unique, but (block_number, extrinsic_index) is per chain */
+    /* account_id: public key */
+    /* address: account_id in ss58 format per chain */
+    chain_id TEXT,
+    block_number INTEGER,
+    block_hash TEXT,
+    block_timestamp INTEGER,
+    extrinsic_index INTEGER,
+    extrinsic_hash TEXT,
+    call_module TEXT,
+    call_module_function TEXT,
+    params JSON,
+    account_id TEXT,
+    address TEXT,
+    nonce INTEGER,
+    fee TEXT,
+    PRIMARY KEY (chain_id, block_number, extrinsic_index, address)
+);
+"""
+
 DB_SCRIPT_CREATE_TABLES = """
 PRAGMA foreign_keys=off;
 BEGIN TRANSACTION;
-{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}
+{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}
 COMMIT;
 PRAGMA foreign_keys=on;
 """.format(
@@ -620,4 +643,5 @@ PRAGMA foreign_keys=on;
     DB_CREATE_IGNORED_ACTIONS,
     DB_CREATE_BALANCER_POOLS,
     DB_CREATE_BALANCER_EVENTS,
+    DB_CREATE_SUBSTRATE_EXTRINSICS,
 )
